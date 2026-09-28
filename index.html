@@ -274,7 +274,7 @@ function cropGuideFrame(){
   const sc = Math.max(W / vw, H / vh), offX = (W - vw * sc) / 2, offY = (H - vh * sc) / 2;
   let sx = (W * 0.10 - offX) / sc, sy = (H * 0.10 - offY) / sc, sw = W * 0.80 / sc, sh = H * 0.80 / sc;
   sx = Math.max(0, sx); sy = Math.max(0, sy); sw = Math.min(sw, vw - sx); sh = Math.min(sh, vh - sy);
-  const k = Math.min(1, 1600 / Math.max(sw, sh));
+  const k = Math.min(1, 1000 / Math.max(sw, sh));
   const c = document.createElement('canvas');
   c.width = Math.round(sw * k); c.height = Math.round(sh * k);
   c.getContext('2d').drawImage(video, sx, sy, sw, sh, 0, 0, c.width, c.height);
@@ -315,9 +315,9 @@ function enhance(c){
   for(let i = 0; i < d.length; i += 4){ const g = Math.max(0, Math.min(255, (d[i] - lo) * k)); d[i] = d[i+1] = d[i+2] = g; }
   cx.putImageData(img, 0, 0);
 }
-function encodeJpeg(c){ // OCR free tier limit is 1 MB
-  let q = 0.85, work = c, url = work.toDataURL('image/jpeg', q);
-  for(let t = 0; t < 6 && url.length > 1200000; t++){
+function encodeJpeg(c){ // kept small and fast for mobile uploads
+  let q = 0.8, work = c, url = work.toDataURL('image/jpeg', q);
+  for(let t = 0; t < 6 && url.length > 500000; t++){
     if(q > 0.5){ q -= 0.1; }
     else { const s = document.createElement('canvas'); s.width = Math.round(work.width * 0.8); s.height = Math.round(work.height * 0.8); s.getContext('2d').drawImage(work, 0, 0, s.width, s.height); work = s; }
     url = work.toDataURL('image/jpeg', q);
@@ -369,7 +369,17 @@ function analyze(expected, text){
 // ---------- OCR calls ----------
 async function callBackend(dataUrl, expected){
   if(!endpoint) throw new Error('No backend endpoint set — open Settings.');
-  const resp = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: dataUrl, expected }) });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 25000);
+  let resp;
+  try{
+    resp = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: dataUrl, expected }), signal: ctrl.signal });
+  }catch(err){
+    if(err.name === 'AbortError') throw new Error('Request timed out — try again on a stronger connection.');
+    throw new Error('Network error reaching the backend — check your connection and the endpoint in Settings.');
+  }finally{
+    clearTimeout(timer);
+  }
   if(!resp.ok){ let d = {}; try{ d = await resp.json(); }catch(e){} throw new Error(d.detail || d.error || ('server error ' + resp.status)); }
   return resp.json();
 }
