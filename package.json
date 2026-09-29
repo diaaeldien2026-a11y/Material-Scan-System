@@ -1,0 +1,6 @@
+{
+  "name": "material-verify-backend",
+  "version": "1.0.0",
+  "description": "Backend proxy for Material Verify — OCR via OCR.space, material lookup via Google Sheets. No credit card required anywhere.",
+  "private": true
+}
